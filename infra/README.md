@@ -52,6 +52,68 @@ terraform plan
 terraform apply
 ```
 
+## Cómo lee Terraform los archivos y en qué orden crea los recursos
+
+### Los archivos se unen en una sola configuración
+
+`terraform plan` y `terraform apply` cargan **todos los `.tf` de esta carpeta**
+(`main.tf`, `function-app-order-api.tf`, `variables.tf`, `outputs.tf`, ...) y los
+tratan como si fueran un solo archivo. El nombre y el orden de los archivos **no
+importan**: dividirlos es solo para organizarse. Las subcarpetas no se leen, salvo
+que se usen como `module`.
+
+### El orden lo decide el grafo de dependencias
+
+Cuando un recurso referencia un atributo de otro (por ejemplo
+`resource_group_name = azurerm_resource_group.main.name`), Terraform deduce que
+debe crear primero el referenciado. Con esas referencias arma este grafo. Cada
+flecha significa "se crea antes que":
+
+```mermaid
+flowchart TD
+    RG["azurerm_resource_group.main<br/><i>order-system-dev-rg</i>"]
+    PLAN["azurerm_service_plan.my_plan<br/><i>FC1 · Flex Consumption</i>"]
+    SA["azurerm_storage_account.main"]
+    CONT["azurerm_storage_container.order_api_deploy<br/><i>paquete del código desplegado</i>"]
+    LAW["azurerm_log_analytics_workspace.main<br/><i>almacena la telemetría</i>"]
+    AI["azurerm_application_insights.app1_insights<br/><i>monitoreo</i>"]
+    FUNC["azurerm_function_app_flex_consumption.order-api-func<br/><i>order-system-api-dev-func01</i>"]
+
+    RG --> PLAN
+    RG --> SA
+    RG --> LAW
+    SA --> CONT
+    LAW --> AI
+    PLAN --> FUNC
+    CONT --> FUNC
+    AI --> FUNC
+```
+
+Al ejecutar un `apply` sobre un ambiente vacío:
+
+1. **Resource group:** no depende de nada, así que va primero.
+2. **Service plan, storage account y Log Analytics, en paralelo:** solo dependen
+   del RG y no entre sí. Terraform ejecuta hasta 10 operaciones a la vez.
+3. **Container y App Insights:** cada uno espera a su padre (storage y workspace).
+4. **Function App al final:** referencia al plan, al container y a App Insights.
+
+`terraform destroy` recorre el grafo **al revés**: primero la Function App y al
+final el RG.
+
+> El grafo muestra solo las dependencias directas mínimas. La Function App también
+> referencia al storage account y al RG, pero esas dependencias ya quedan cubiertas
+> a través del container y del plan, así que Terraform las omite del diagrama.
+
+Si un recurso necesita a otro sin referenciar ninguno de sus atributos, la
+dependencia se declara a mano con `depends_on = [...]`. Es la excepción: lo
+normal es que basten las referencias.
+
+Para regenerar el grafo desde el código (requiere `brew install graphviz`):
+
+```bash
+terraform graph | dot -Tpng > grafo.png
+```
+
 ## Borrar todo: siempre con Terraform, nunca desde el portal
 
 ```bash
