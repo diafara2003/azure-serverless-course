@@ -1,0 +1,16 @@
+{
+    "customerName": "ACME",
+    "email": "customer@acme.com",
+    "items": [
+        {
+            "productId": "item-001",
+            "quantity": 2
+        },
+        {
+            "productId": "item-002",
+            "quantity": 1
+        }
+    ],
+    "totalAmount": 40.0,
+    "orderDate": "2024-06-15"
+}

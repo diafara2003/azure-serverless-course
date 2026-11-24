@@ -12,6 +12,8 @@ dist/
 build/
 .cache/
 
+.vscode/
+
 # C#
 [Bb]in/
 [Oo]bj/
@@ -36,3 +38,10 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.python_packages/
