@@ -1,0 +1,44 @@
+name: Deploy  Azure Infrastructure
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - 'infra/**'
+            - '.github/workflows/deploy-infra.yml'
+    workflow_dispatch: #allow manual excecution of the workflow
+
+jobs:
+    deploy-infra:
+        name: Deploy Azure Infrastructure
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v3
+
+            - name: Set up Terraform
+              uses: hashicorp/setup-terraform@v2
+              with:
+                  terraform_version: v1.17.1
+
+            - name: Azure authentication
+              uses: azure/login@v1
+              with:
+                  creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+            - name: Terraform Init
+              working-directory: ./infra
+              run: terraform init
+
+            - name: Terraform validate
+              working-directory: ./infra
+              run: terraform validate
+
+            - name: Terraform plan
+              working-directory: ./infra
+              run: terraform plan -out=tfplan
+
+            - name: Terraform apply
+              working-directory: ./infra
+              run: terraform apply -auto-approve tfplan

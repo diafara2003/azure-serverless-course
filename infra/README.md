@@ -98,3 +98,60 @@ az provider register --namespace Microsoft.Insights --wait
 El registro es de la suscripción, no de un recurso: borrar recursos no lo deshace.
 Si agregas un tipo de recurso nuevo y aparece `MissingSubscriptionRegistration`,
 el mensaje de error indica el namespace: regístralo y agrégalo a esta tabla.
+
+## Service principal para GitHub Actions (una sola vez)
+
+Para que GitHub Actions ejecute `terraform plan` y `terraform apply`, necesita una
+identidad propia en Azure: un **service principal**, que es una "cuenta de servicio"
+en Entra ID. En local Terraform usa tu sesión de `az login`, pero un pipeline no
+puede iniciar sesión como tú.
+
+```bash
+az ad sp create-for-rbac --name github-terraform-deployer --role Contributor \
+  --scopes "/subscriptions/$(az account show --query id -o tsv)"
+```
+
+| Parte | Qué hace |
+|---|---|
+| `--name github-terraform-deployer` | Crea (o reutiliza) la app en Entra ID con ese nombre |
+| `--role Contributor` | Le da permiso para crear, modificar y borrar recursos |
+| `--scopes /subscriptions/<id>` | Limita ese permiso a esta suscripción |
+
+### Qué devuelve y dónde va
+
+La salida es un JSON con credenciales. **Cópialo directo a los secrets del repo**
+(GitHub → *Settings* → *Secrets and variables* → *Actions*) y no lo pegues en chats
+ni lo commitees:
+
+| Campo de la salida | Secret en GitHub | Para qué |
+|---|---|---|
+| `appId` | `ARM_CLIENT_ID` | Identifica al service principal |
+| `password` | `ARM_CLIENT_SECRET` | Su contraseña |
+| `tenant` | `ARM_TENANT_ID` | El directorio (tenant) de Entra ID |
+| *(no viene en la salida)* `az account show --query id -o tsv` | `ARM_SUBSCRIPTION_ID` | La suscripción donde se despliega |
+
+El provider `azurerm` y el backend leen automáticamente estas variables `ARM_*` del
+entorno, así que en el workflow basta con exponerlas como variables de entorno.
+
+### Errores y advertencias conocidos
+
+- **`(MissingSubscription) The request did not have a subscription...`:** el scope
+  está mal escrito. Es `/subscriptions/` (con **s**), no `/subcriptions/`. Usar
+  `$(az account show ...)` evita tipear la ruta.
+- **`Found an existing application instance ... We will patch it`:** la app ya existe
+  (por ejemplo, de un intento fallido) y se reutiliza. Se genera un `password` nuevo:
+  usa siempre el de la **última** ejecución y actualiza el secret en GitHub.
+- **El `password` vence** (por defecto en un año). Cuando venza, el pipeline fallará
+  con un error de autenticación. Para regenerarlo:
+  `az ad sp credential reset --id <appId>`.
+- **`Contributor` no puede asignar roles.** Si en el futuro Terraform crea
+  *role assignments* (por ejemplo, dar a la Function App acceso al storage con
+  managed identity), el service principal necesitará además
+  *Role Based Access Control Administrator* o *User Access Administrator*.
+
+### Alternativa más segura: OIDC
+
+En vez de un `password` guardado en GitHub, se pueden usar *federated credentials*
+(OIDC): GitHub obtiene un token temporal de Azure en cada ejecución y no hay ningún
+secreto que guardar ni que rote. Es lo que recomiendan Microsoft y GitHub para
+pipelines nuevos.
