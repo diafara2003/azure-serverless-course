@@ -51,6 +51,10 @@ resource "azurerm_function_app_flex_consumption" "order-api-func" {
   maximum_instance_count = 40
   instance_memory_in_mb  = 2048
 
+  # Necesario para desplegar con publish profile (usuario/password del SCM).
+  # En Flex viene desactivado por defecto.
+  webdeploy_publish_basic_authentication_enabled = true
+
   site_config {
     application_insights_connection_string = azurerm_application_insights.app1_insights.connection_string
   }
