@@ -33,17 +33,14 @@ jobs:
                   python -m pip install --upgrade pip
                   pip install -r requirements.txt
 
-            - name: Azure authentication
-              uses: azure/login@v2
-              with:
-                  creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-            # Flex Consumption: sin publish profile (basic auth viene desactivada);
-            # se autentica con el login anterior y Azure instala requirements.txt (remote-build).
+            # Autenticación con publish profile: requiere basic auth de SCM habilitada en la
+            # Function App (webdeploy_publish_basic_authentication_enabled en Terraform).
+            # Flex Consumption: sku flexconsumption + remote-build (Azure instala requirements.txt).
             - name: Deploy function to azure
               uses: azure/functions-action@v1
               with:
                   app-name: 'order-system-api-dev-func01'
                   package: 'order-api-function'
+                  publish-profile: ${{ secrets.ORDER_API_AZURE_FUNCTION_APP_PUBLISH_PROFILE }}
                   sku: flexconsumption
                   remote-build: true
