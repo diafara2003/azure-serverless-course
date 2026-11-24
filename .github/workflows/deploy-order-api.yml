@@ -38,12 +38,11 @@ jobs:
               with:
                   creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-            # Flex Consumption: sin publish profile (basic auth viene desactivada);
-            # se autentica con el login anterior y Azure instala requirements.txt (remote-build).
             - name: Deploy function to azure
               uses: azure/functions-action@v1
               with:
-                  app-name: 'order-system-api-dev-func01'
-                  package: 'order-api-function'
-                  sku: flexconsumption
-                  remote-build: true
+                    app-name: 'order-system-api-dev-func01'
+                    publish-profile: ${{ secrets.ORDER_API_AZURE_FUNCTION_APP_PUBLISH_PROFILE }}
+                    package: 'order-api-function'
+                    scm-do-build-during-deployment: true
+                    enable-oryx-build: true
