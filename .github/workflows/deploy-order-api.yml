@@ -1,0 +1,43 @@
+name: Deploy Order API function
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - 'order-api-function/**'
+            - '.github/workflows/deploy-order-api.yml'
+    workflow_dispatch: #allow manual excecution of the workflow
+
+jobs:
+    deploy-order-api:
+        name: Deploy Order API function
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v3
+
+            - name: Set up Python
+              uses: actions/setup-python@v4
+              with:
+                  python-version: '3.11'
+
+            - name: Create a new Environment
+              run: |
+                  python -m venv .venv
+                  source .venv/bin/activate
+
+
+            - name: Install dependencies
+              run: |
+                  cd order-api-function
+                  python -m pip install --upgrade pip
+                  pip install -r order-api-function/requirements.txt
+
+            - name: Deploy function to azure
+              uses: azure/functions-action@v1
+              with:
+                    app-name: 'order-api-func'
+                    PUBLIC_URL: ${{ secrets.ORDER_API_AZURE_FUNCTION_APP_PUBLISH_PROFILE }}
+                    package: 'order-api-function'
+                    scm-do-build-during-deployment: true
+                    enable-oryx-build: true
